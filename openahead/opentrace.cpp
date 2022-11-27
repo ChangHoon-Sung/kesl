@@ -1,5 +1,5 @@
 #include <errno.h>
-#include <linux/fcntl.h>
+#include <fcntl.h>
 #include <linux/limits.h>
 #include <poll.h>
 #include <signal.h>
@@ -15,6 +15,8 @@
 
 std::unordered_map<std::string, std::string> hist;
 std::string latest_opened_file;
+
+const pid_t my_pid = getpid();
 
 static uint64_t event_mask = (FAN_OPEN | FAN_EVENT_ON_CHILD);
 
@@ -51,7 +53,7 @@ static int handle_events(int fd) {
 
                 // queue overflow가 일어난 경우 metadata->fd에 FAN_NOFD가 기록됨
                 // 아닌 경우 정상적인 fd가 기록됨
-                if (metadata->fd >= 0) {
+                if (metadata->fd >= 0 && metadata->pid != my_pid) {
                     if (metadata->mask & FAN_OPEN) {
                         printf("FAN_OPEN: ");
 
@@ -65,6 +67,14 @@ static int handle_events(int fd) {
 
                         path[path_len] = '\0';
                         printf("File %s\n", path);
+
+                        if(!hist[path].empty()){
+                            close(open(hist[path].c_str(), O_RDONLY | O_LARGEFILE));
+                            printf("OPENAHEAD: File %s\n", hist[path].c_str());
+                        }
+
+                        hist[latest_opened_file] = path;
+                        latest_opened_file = path;
 
                         close(metadata->fd);
                         fflush(stdout);

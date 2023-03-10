@@ -17,58 +17,62 @@ def update_process_hierarchy(log_file_path):
                 print(count, end="\r")
                 line = line.strip()
                 date, time, pid, ppid, comm, path = line.split()
+                path = Path(path)
 
-                # 현재 프로세스의 부모 프로세스가 자료구조에 존재하는 경우
+                # if path is not a regular file, skip
+                if not path.is_file() or any(path.is_relative_to(x) for x in ["/dev", "/proc", "/sys", "/run"]):
+                    continue
+
                 parent_process = pid_index.get(ppid)
+                # 현재 프로세스의 부모 프로세스가 자료구조에 존재하는 경우
                 if parent_process is not None:
-
-                    # 현재 프로세스가 부모 프로세스에게 등록되어 있지 않은 경우
-                    if pid not in parent_process["children"]:
-                        process = {
-                            "comm": comm,
+                    if parent_process["ppid"] is None:
+                        parent_process["ppid"] = ppid
+                    
+                    # 새로운 자식 프로세스인 경우
+                    if pid in parent_process["children"].keys():
+                        parent_process["children"][pid]["logs"].append(line)
+                    else:
+                        parent_process["children"][pid] = {
                             "ppid": ppid,
+                            "comm": comm,
                             "logs": [line],
                             "children": {}
                         }
-                        parent_process["children"][pid] = process
-
-                    # 현재 프로세스가 부모 프로세스에게 등록되어 있는 경우
-                    else:
-                        parent_process["children"][pid]["logs"].append(line)
-                    
-                    # 인덱스 등록
-                    pid_index[pid] = parent_process["children"][pid]
-
+                        pid_index[pid] = parent_process["children"][pid]
+                
                 # 현재 프로세스의 부모 프로세스가 자료구조에 존재하지 않는 경우
                 else:
-                    # 현재 프로세스가 자료구조 최상위 계층에 존재하지 않는 경우
-                    # 즉, 지금까지 발견된 프로세스보다 더 상위 계층의 프로세스가 발견된 경우
-                    if pid not in process_hierarchy.keys():
-                        process = {
-                            "comm": comm,
+                    # 최상단에 부모 확장
+                    with open(f'/proc/{ppid}/comm', 'r') as f:
+                        parent_comm = f.readline().strip()
+
+                    parent_process = {
+                        "ppid": None,           # 이 프로세스가 아직 추적된 적이 없음
+                        "comm": parent_comm,
+                        "logs": [],
+                        "children": {}
+                    }
+
+                    process_hierarchy[ppid] = parent_process
+
+                    # 현재 프로세스가 루트인 경우
+                    if pid in process_hierarchy.keys():
+                        process_hierarchy[pid]["logs"].append(line)
+                    
+                    # 현재 프로세스가 루트가 아닌 경우 (처음 발견)
+                    else:
+                        process_hierarchy[pid] = {
                             "ppid": ppid,
+                            "comm": comm,
                             "logs": [line],
                             "children": {}
                         }
 
-                        # 자료구조 최상위 계층에서 현재 프로세스의 자식 프로세스를 찾아서 등록
-                        child_pids = []
-                        for child_cand_pid in process_hierarchy.keys():
-                            if process_hierarchy[child_cand_pid]["ppid"] == pid:
-                                child_pids.append(child_cand_pid)
-
-                        for child_pid in child_pids:
-                            process["children"][child_pid] = process_hierarchy[child_pid]
-                            del process_hierarchy[child_pid]
-                        
-                        # 현재 프로세스를 자료구조 최상위 계층 및 인덱스에 등록
-                        process_hierarchy[pid] = process
-                        pid_index[pid] = process_hierarchy[pid]
-                    
-                    # 현재 프로세스가 자료구조 최상위 계층에 존재하는 경우
-                    else:
-                        current_process = process_hierarchy[pid]
-                        current_process["logs"].append(line)
+                    # 확장한 부모에 현재 프로세스를 자식으로 추가
+                    process_hierarchy[ppid]["children"][pid] = process_hierarchy[pid]
+                    pid_index[ppid] = process_hierarchy[ppid]
+                    del process_hierarchy[pid]
             except Exception as e:
                 print(line)
                 print(count)
@@ -107,4 +111,4 @@ def groupby_comm_per_level(process_hierarchy: None):
 if __name__ == "__main__":
     
     get_process_hierarchy()
-    json.dump(groupby_comm_per_level(process_hierarchy), open("traces/comm_hierarchy.json", "w"))
+    # json.dump(groupby_comm_per_level(process_hierarchy), open("traces/comm_hierarchy.json", "w"))

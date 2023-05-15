@@ -1,9 +1,12 @@
 import re, sys
 from pathlib import Path
 
+
+# strace openat 라인에서 경로 찾기
 regex = re.compile(r'openat\(AT_FDCWD, "(/[^"]+)",')
 
 
+# strace log에서 line-by-line으로 POSIX 경로를 찾아 반환하는 제너레이터
 def read_path_from_file(path):
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -17,7 +20,7 @@ class Node:
         self.weight = 1
         self.edges = dict()
         self.key = key
-        self.height = height
+        self.height = height        # 출력 포맷을 위한 optional 속성
 
     def get(self, c):
         for e in self.edges:
@@ -45,25 +48,40 @@ def buildTree():
     root = Node('root')
     root.weight = 0
     node = root
-    prev = None
 
-    for p in sys.stdin:
-        p = p.strip()
-        child = node.get(p)
+
+    # stdin 테스트
+    # for data in sys.stdin:      # Ctrl+D로 stdin에 EOF 전달
+    #     data = data.strip()
+    #     child = node.get(data)
+    #     if child is not None:
+    #         node = child
+    #         node.weight += 1
+    #     else:
+    #         node.edges[data] = Node(data, node.height + 1)
+    #         node.edges[data].edges['$'] = Node('$', node.height + 1)    # End of pattern
+            
+    #         root.weight += 1
+    #         node = root
+    
+    # strace log 테스트
+    log_path = Path('../data/GIMP/strace-gimp-filtered.log')
+    for data in read_path_from_file(log_path):
+        data = data.strip()
+        child = node.get(data)
         if child is not None:
             node = child
             node.weight += 1
         else:
-            node.edges[p] = Node(p, node.height + 1)
-            node.edges[p].edges['$'] = Node('$', node.height + 1)    # End of pattern
+            node.edges[data] = Node(data, node.height + 1)
+            node.edges[data].edges['$'] = Node('$', node.height + 1)    # End of pattern
             
             root.weight += 1
             node = root
         
-        # node.print()
-    
-    # root.print()
-    with open('str.json', 'w') as f:
+    root.print()
+
+    with open('../lztree.json', 'w') as f:
         f.write(str(root))
 
 

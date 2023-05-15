@@ -14,6 +14,12 @@ def read_path_from_file(path):
             if match:
                 yield Path(match.group(1)).as_posix()
 
+def read_strace_from_stdin():
+    for line in sys.stdin:
+        match = regex.search(line)
+        if match:
+            yield Path(match.group(1)).as_posix()
+
 
 class Node:
     def __init__(self, key, height=0):
@@ -49,24 +55,9 @@ def buildTree():
     root.weight = 0
     node = root
 
-
-    # stdin 테스트
-    # for data in sys.stdin:      # Ctrl+D로 stdin에 EOF 전달
-    #     data = data.strip()
-    #     child = node.get(data)
-    #     if child is not None:
-    #         node = child
-    #         node.weight += 1
-    #     else:
-    #         node.edges[data] = Node(data, node.height + 1)
-    #         node.edges[data].edges['$'] = Node('$', node.height + 1)    # End of pattern
-            
-    #         root.weight += 1
-    #         node = root
-    
-    # strace log 테스트
-    log_path = Path('../data/GIMP/strace-gimp-filtered.log')
-    for data in read_path_from_file(log_path):
+    # strace pipe 테스트
+    # $ strace -e openat -f gimp 2>&1 | python lztree.py
+    for data in read_strace_from_stdin():
         data = data.strip()
         child = node.get(data)
         if child is not None:
@@ -78,10 +69,25 @@ def buildTree():
             
             root.weight += 1
             node = root
+    
+    # strace log 파일 테스트
+    # log_path = Path('../data/GIMP/strace-gimp-filtered.log')
+    # for data in read_path_from_file(log_path):
+    #     data = data.strip()
+    #     child = node.get(data)
+    #     if child is not None:
+    #         node = child
+    #         node.weight += 1
+    #     else:
+    #         node.edges[data] = Node(data, node.height + 1)
+    #         node.edges[data].edges['$'] = Node('$', node.height + 1)    # End of pattern
+            
+    #         root.weight += 1
+    #         node = root
         
     root.print()
 
-    with open('../lztree.json', 'w') as f:
+    with open('lztree.json', 'w') as f:
         f.write(str(root))
 
 

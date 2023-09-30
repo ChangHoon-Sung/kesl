@@ -111,4 +111,4 @@ def groupby_comm_per_level(process_hierarchy: None):
 if __name__ == "__main__":
     
     get_process_hierarchy()
-    # json.dump(groupby_comm_per_level(process_hierarchy), open("traces/comm_hierarchy.json", "w"))
+    json.dump(groupby_comm_per_level(process_hierarchy), open("traces/comm_hierarchy.json", "w"))
